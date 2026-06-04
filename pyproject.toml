@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tc-track-analogues"
+version = "0.1.0"
+description = "TC attribution using track analogues as per Bourdin et al. 2025"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["tropical cyclone", "track analogues", "attribution", "climate"]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=1.5",
+    "xarray>=2023.1",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+notebook = [
+    "jupyter>=1.0",
+    "ipykernel>=6.0",
+    "cartopy>=0.21",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tc_track_analogues*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
