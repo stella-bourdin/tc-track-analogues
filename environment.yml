@@ -1,0 +1,19 @@
+name: tc-track-analogues
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.9
+  - numpy>=1.24
+  - pandas>=1.5
+  - xarray>=2023.1
+  - scipy>=1.10
+  - matplotlib>=3.7
+  - jupyter>=1.0
+  - ipykernel>=6.0
+  - cartopy>=0.21
+  - pytest>=7.0
+  - pytest-cov>=4.0
+  - pip
+  - pip:
+    - -e .
