@@ -12,6 +12,7 @@ Core workflow
 """
 
 from .analogues import find_analogues, compute_attribution, track_distance
+from .target import load_target_track_hourly, extract_target_window_before_landfall, plot_target_case
 from . import plot
 
 __all__ = [
@@ -19,6 +20,9 @@ __all__ = [
     "compute_attribution",
     "track_distance",
     "plot",
+    "load_target_track_hourly", 
+    "extract_target_window_before_landfall", 
+    "plot_target_case",
 ]
 
 __version__ = "0.1.0"
