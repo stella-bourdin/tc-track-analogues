@@ -1,221 +1,109 @@
-"""
-Core functions for finding TC track analogues and computing attribution.
-
-A *track* is represented as a :class:`pandas.DataFrame` with at least the
-columns ``lon``, ``lat`` (and optionally ``time``).  An *ensemble* is a
-list of such DataFrames, one per member.
-"""
-
-from __future__ import annotations
-
 import numpy as np
-import pandas as pd
-from scipy.spatial.distance import cdist
-from typing import Sequence
+from haversine import haversine, Unit
+import xarray  as xr
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
 
-
-# ---------------------------------------------------------------------------
-# Distance metric
-# ---------------------------------------------------------------------------
-
-def track_distance(
-    track_a: pd.DataFrame,
-    track_b: pd.DataFrame,
-    lon_col: str = "lon",
-    lat_col: str = "lat",
-    method: str = "frechet",
-) -> float:
-    """Return the distance between two TC tracks.
-
-    The tracks are resampled to the same number of equally-spaced points
-    before comparison so that tracks of different lengths can be compared.
-
-    Parameters
-    ----------
-    track_a, track_b:
-        DataFrames with at least *lon_col* and *lat_col* columns.
-    lon_col, lat_col:
-        Column names for longitude and latitude.
-    method:
-        ``"frechet"`` (default) – discrete Fréchet distance;
-        ``"hausdorff"`` – Hausdorff distance.
-
-    Returns
-    -------
-    float
-        Non-negative distance value in degrees.
+def add_dist_from_target_landfall(catalogue, lf_lon, lf_lat,):
     """
-    pts_a = _resample_track(track_a[[lon_col, lat_col]].values)
-    pts_b = _resample_track(track_b[[lon_col, lat_col]].values)
+    For all points in a catalogue, add the distance to h_l defined by its longitude and latitude 
+    """
+    tracks_coords = np.concatenate([[catalogue.lat], [catalogue.lon]]).T
+    X = [lf_lat, lf_lon] # Landfall coords
+    dist = [haversine(c, [float(X[0]), float(X[1])], unit=Unit.KILOMETERS) for c in tracks_coords]
+    return xr.DataArray(dist, dims = "record")
 
-    if method == "hausdorff":
-        return _hausdorff(pts_a, pts_b)
-    elif method == "frechet":
-        return _discrete_frechet(pts_a, pts_b)
-    else:
-        raise ValueError(f"Unknown method '{method}'. Choose 'frechet' or 'hausdorff'.")
+def extract_track_window(track, closest_pt, time_window = 24):
+    """
+    Applies the window to the track
+    """
+    time_delta = track.time.values - closest_pt.time.values
+    mask_window = (time_delta > -np.timedelta64(time_window, 'h')) & \
+                (time_delta <= np.timedelta64(0, 'h'))
+    return track[mask_window]
 
-
-def _resample_track(pts: np.ndarray, n: int = 100) -> np.ndarray:
-    """Resample a track to *n* equidistant points."""
-    if len(pts) < 2:
-        return np.tile(pts[0], (n, 1))
-    dists = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))])
-    total = dists[-1]
-    if total == 0:
-        return np.tile(pts[0], (n, 1))
-    s = np.linspace(0, total, n)
-    resampled = np.column_stack([
-        np.interp(s, dists, pts[:, i]) for i in range(pts.shape[1])
-    ])
-    return resampled
+# Distance functions for analogue computation
+def dist_haversine(A, B):
+    A_coords = np.concatenate([[A.lat], [A.lon]]).T
+    B_coords = np.concatenate([[B.lat], [B.lon]]).T
+    return [haversine(a, b, unit = Unit.DEGREES) for a, b in zip(A_coords, B_coords)]
 
 
-def _hausdorff(pts_a: np.ndarray, pts_b: np.ndarray) -> float:
-    """Hausdorff distance between two point sets."""
-    dist_matrix = cdist(pts_a, pts_b)
-    return max(dist_matrix.min(axis=1).max(), dist_matrix.min(axis=0).max())
+def find_analogues(target_window, catalogue, exclusion_dist = 1000, d_max = 1., time_window = 24): 
+    """
+    Function to get the analogues of a given case
 
+    name: name of the target case
+    data: cataogue of tracks
+    target_window: 1-day trajectory of the target case before landfall
+    intensity_col: list of column names that will be kept in the output
+    exclusion_dist: Points that are further away than this distance from the target cases' landfall will not be considered at all. Used for performance.
+    DIStarget_window_MAX: d_max in the paper
+    CF_MIN
+    """
 
-def _discrete_frechet(pts_a: np.ndarray, pts_b: np.ndarray) -> float:
-    """Discrete Fréchet distance between two ordered point sequences."""
-    n, m = len(pts_a), len(pts_b)
-    ca = np.full((n, m), -1.0)
+    # Prepare input
+    data_df = catalogue.to_dataframe()
+    groups = data_df.groupby("track_id")
 
-    def _c(i: int, j: int) -> float:
-        if ca[i, j] >= 0:
-            return ca[i, j]
-        d = float(np.linalg.norm(pts_a[i] - pts_b[j]))
-        if i == 0 and j == 0:
-            ca[i, j] = d
-        elif i == 0:
-            ca[i, j] = max(_c(0, j - 1), d)
-        elif j == 0:
-            ca[i, j] = max(_c(i - 1, 0), d)
+    # Select points within exclusion_dist of the landfall
+    pts_within_exclusion_dist = data_df[data_df["dist2target"] < exclusion_dist]
+    # Keep the closest point for each track_id
+    closest_pt_per_track = pts_within_exclusion_dist.sort_values("dist2target").groupby("track_id").first()
+
+    # Treat each track: extract window, compute analogue distance
+    analogues = closest_pt_per_track.assign(analogue_dist = np.nan)
+    for sid in closest_pt_per_track.index.values:
+        closest_pt = closest_pt_per_track[closest_pt_per_track.index == sid] # The point being treated
+        track = groups.get_group(sid)[["track_id", "lon", "lat", "time",]] # Track in which this point is
+        # Check that the track is long enough 
+        if track.time.min() >= (closest_pt.time-np.timedelta64(time_window, 'h')).values: 
+            analogues = analogues.drop(sid) # Drop if track is too short
         else:
-            ca[i, j] = max(min(_c(i - 1, j), _c(i - 1, j - 1), _c(i, j - 1)), d)
-        return ca[i, j]
+            # Extract the track over the window
+            track_window = extract_track_window(track, closest_pt, time_window)
+            # Compute the distance to the target
+            analogue_dist = np.mean(dist_haversine(target_window, track_window))
+            if analogue_dist > d_max:
+                # If too far, remove the point
+                analogues = analogues.drop(sid)
+            else: 
+                # If close enough, store the analogue distance
+                analogues.loc[sid, "analogue_dist"] = analogue_dist 
 
-    return _c(n - 1, m - 1)
+    return analogues
 
+def flag_periods(analogues, parameters):
+    for c in analogues:
+        analogues[c] = analogues[c].assign(period = np.where(analogues[c].time.dt.year.between(parameters.dates.loc[c][0], parameters.dates.loc[c][1]), "CF", "nan"))
+        analogues[c] = analogues[c].assign(period = np.where(analogues[c].time.dt.year.between(parameters.dates.loc[c][2], parameters.dates.loc[c][3]), "F", analogues[c].period))
+    return analogues
 
-# ---------------------------------------------------------------------------
-# Finding analogues
-# ---------------------------------------------------------------------------
-
-def find_analogues(
-    target_track: pd.DataFrame,
-    ensemble: Sequence[pd.DataFrame],
-    n_analogues: int = 10,
-    lon_col: str = "lon",
-    lat_col: str = "lat",
-    method: str = "frechet",
-) -> pd.DataFrame:
-    """Find the closest analogues to *target_track* within *ensemble*.
-
-    Parameters
-    ----------
-    target_track:
-        The reference track to match against.
-    ensemble:
-        A sequence of candidate tracks to search through.
-    n_analogues:
-        Maximum number of analogues to return.
-    lon_col, lat_col:
-        Column names for longitude and latitude.
-    method:
-        Distance method passed to :func:`track_distance`.
-
-    Returns
-    -------
-    pandas.DataFrame
-        A DataFrame with columns ``member`` (index into *ensemble*),
-        ``distance``, sorted by ascending distance.
-    """
-    distances = [
-        track_distance(target_track, track, lon_col=lon_col, lat_col=lat_col, method=method)
-        for track in ensemble
-    ]
-    result = pd.DataFrame({"member": range(len(ensemble)), "distance": distances})
-    result = result.sort_values("distance").reset_index(drop=True)
-    return result.head(n_analogues)
-
-
-# ---------------------------------------------------------------------------
-# Attribution
-# ---------------------------------------------------------------------------
-
-def compute_attribution(
-    factual_ensemble: Sequence[pd.DataFrame],
-    counterfactual_ensemble: Sequence[pd.DataFrame],
-    target_track: pd.DataFrame,
-    n_analogues: int = 10,
-    lon_col: str = "lon",
-    lat_col: str = "lat",
-    method: str = "frechet",
-) -> dict:
-    """Compute an attribution metric using the track-analogue method.
-
-    Finds the *n_analogues* closest tracks in both the factual and
-    counterfactual ensembles and returns a summary of their distances,
-    which can be used to infer the effect of climate change on the
-    likelihood of the target track.
-
-    Parameters
-    ----------
-    factual_ensemble:
-        Ensemble of tracks representing present-day (factual) climate.
-    counterfactual_ensemble:
-        Ensemble of tracks representing the counterfactual climate
-        (e.g., pre-industrial).
-    target_track:
-        The observed TC track to attribute.
-    n_analogues:
-        Number of closest analogues to use from each ensemble.
-    lon_col, lat_col:
-        Column names for longitude and latitude.
-    method:
-        Distance method passed to :func:`track_distance`.
-
-    Returns
-    -------
-    dict
-        Dictionary with keys:
-
-        ``factual_analogues``
-            :class:`~pandas.DataFrame` of closest factual analogues.
-        ``counterfactual_analogues``
-            :class:`~pandas.DataFrame` of closest counterfactual analogues.
-        ``probability_ratio``
-            Ratio of the fraction of analogues within a threshold
-            distance in the factual vs. counterfactual ensemble.
-        ``mean_distance_factual``
-            Mean distance of the *n_analogues* closest factual members.
-        ``mean_distance_counterfactual``
-            Mean distance of the *n_analogues* closest counterfactual members.
-    """
-    factual_analogues = find_analogues(
-        target_track, factual_ensemble, n_analogues=n_analogues,
-        lon_col=lon_col, lat_col=lat_col, method=method,
-    )
-    counterfactual_analogues = find_analogues(
-        target_track, counterfactual_ensemble, n_analogues=n_analogues,
-        lon_col=lon_col, lat_col=lat_col, method=method,
-    )
-
-    threshold = factual_analogues["distance"].max()
-
-    p_factual = (factual_analogues["distance"] <= threshold).sum() / len(factual_ensemble)
-    p_counterfactual = (
-        (counterfactual_analogues["distance"] <= threshold).sum() / len(counterfactual_ensemble)
-    )
-
-    probability_ratio = p_factual / p_counterfactual if p_counterfactual > 0 else np.inf
-
-    return {
-        "factual_analogues": factual_analogues,
-        "counterfactual_analogues": counterfactual_analogues,
-        "probability_ratio": probability_ratio,
-        "mean_distance_factual": factual_analogues["distance"].mean(),
-        "mean_distance_counterfactual": counterfactual_analogues["distance"].mean(),
-    }
+def plot_analogues(analogues, catalogues, target, target_window, landfall, color_cf, color_f):
+    fig, axs = plt.subplots(2, len(catalogues), figsize = (3*len(catalogues), 6), subplot_kw = dict(projection = ccrs.PlateCarree()))
+    for ax in axs.flatten():
+        ax.coastlines()
+        ax.plot(target.lon, target.lat, color = 'r', linewidth = 1)
+        ax.plot(target_window.lon, target_window.lat, color = 'r', linewidth = 5)
+        ax.scatter(landfall.lon, landfall.lat, 
+                        color = 'w', edgecolor='r', zorder = 10)
+        pad = 10
+        ax.set_extent([landfall.lon-pad, landfall.lon + pad, landfall.lat - pad, landfall.lat + pad])
+    for j, c in enumerate(catalogues):
+        groups = catalogues[c].groupby("track_id")
+        # Counter-factuals
+        tids = analogues[c][analogues[c].period == "CF"].index.values
+        for tid in tids:
+            t = groups[tid]
+            lf = analogues[c].loc[tid]
+            axs[0,j].plot(t.lon, t.lat, color = color_cf, linewidth = 1, alpha = 0.5)
+            axs[0,j].scatter(lf.lon, lf.lat, edgecolor = color_cf, color = 'w', zorder = 9)
+        axs[0,j].set_title(c + '\n' + str(len(tids)))
+        # Factuals
+        tids = analogues[c][analogues[c].period == "F"].index.values
+        for tid in tids:
+            t = groups[tid]
+            lf = analogues[c].loc[tid]
+            axs[1,j].plot(t.lon, t.lat, color = color_f, linewidth = 1, alpha = 0.5)
+            axs[1,j].scatter(lf.lon, lf.lat, edgecolor = color_f, color = 'w', zorder = 9)
+        axs[1,j].set_title(str(len(tids)))

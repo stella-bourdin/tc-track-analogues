@@ -43,10 +43,10 @@ def extract_target_window_before_landfall(target, landfall_time, time_window = 2
     """
     landfall_time = np.datetime64(landfall_time)
     time_delta = [t - landfall_time for t in target.time.values]
-    mask_1day = (time_delta > -np.timedelta64(time_window, 'h')) & \
+    mask_window = (time_delta > -np.timedelta64(time_window, 'h')) & \
                 (time_delta <= np.timedelta64(0, 'h'))
-    mask_1day = xr.DataArray(mask_1day, dims = "time", coords = {"time":target.time})
-    return target.where(mask_1day, drop = True)
+    mask_window = xr.DataArray(mask_window, dims = "time", coords = {"time":target.time})
+    return target.where(mask_window, drop = True)
 
 def plot_target_case(target_1h, target_window, landfall, name):
     """

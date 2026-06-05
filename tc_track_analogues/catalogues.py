@@ -39,10 +39,10 @@ def load_CHAZ_catalogue(filename="../data/CHAZ.nc"):
     if "lifelength" in varlist:
         ds = ds.drop_vars("lifelength")
     ds["wind"] = ds.wind / 1.94384  # kn to m/s
-    return ds
+    return ds.rename({"sid":"track_id"})
 
 def load_MIT_catalogue(filename = "../data/MIT.nc"):
-    return xr.open_dataset(filename)
+    return xr.open_dataset(filename).rename({"sid":"track_id"})
 
 def load_SEAS520C_catalogue(filename = "../data/SEAS5-20C.nc"):
-    return xr.open_dataset(filename)
+    return xr.open_dataset(filename).rename({"sid":"track_id"})
