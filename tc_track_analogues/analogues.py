@@ -7,6 +7,7 @@ from haversine import haversine, Unit
 import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
+from .utils import flag_periods
 
 
 def add_dist_from_target_landfall(
@@ -45,7 +46,7 @@ def dist_haversine(A, B):
 
 
 def find_analogues(
-    target_window, catalogue, exclusion_dist=1000, d_max=1.0, time_window=24
+    target_window, catalogue, parameters, time_window=24, 
 ):
     """
     Function to get the analogues of a given case
@@ -62,9 +63,10 @@ def find_analogues(
     # Prepare input
     data_df = catalogue.to_dataframe()
     groups = data_df.groupby("track_id")
+    exclusion_dist, d_max, dates = parameters[["exclusion_dist", "d_max", "dates"]]
 
     # Select points within exclusion_dist of the landfall
-    pts_within_exclusion_dist = data_df[data_df["dist2target"] < exclusion_dist]
+    pts_within_exclusion_dist = data_df[data_df["dist2target"] < float(exclusion_dist)]
     # Keep the closest point for each track_id
     closest_pt_per_track = (
         pts_within_exclusion_dist.sort_values("dist2target").groupby("track_id").first()
@@ -101,34 +103,7 @@ def find_analogues(
             else:
                 # If close enough, store the analogue distance
                 analogues.loc[sid, "analogue_dist"] = analogue_dist
-
-    return analogues
-
-
-def flag_periods(analogues, parameters):
-    """
-    Given a set of analogues and parameters containing the period coubndaries, 
-    add a column identifying which analogues belong to the counter-factual or factual period
-    """
-    for c in analogues:
-        analogues[c] = analogues[c].assign(
-            period=np.where(
-                analogues[c].time.dt.year.between(
-                    parameters.dates.loc[c][0], parameters.dates.loc[c][1]
-                ),
-                "CF",
-                "nan",
-            )
-        )
-        analogues[c] = analogues[c].assign(
-            period=np.where(
-                analogues[c].time.dt.year.between(
-                    parameters.dates.loc[c][2], parameters.dates.loc[c][3]
-                ),
-                "F",
-                analogues[c].period,
-            )
-        )
+    analogues = analogues.assign(period = flag_periods(analogues.time.dt.year, dates))
     return analogues
 
 
@@ -164,7 +139,7 @@ def plot_analogues(
         for period, row, color in rows:
             tids = analogues[c][analogues[c].period == period].index.values
             for tid in tids:
-                t = groups.get_group(tid)
+                t = groups[tid]
                 lf = analogues[c].loc[tid]
                 axs[row, j].plot(t.lon, t.lat, color=color, linewidth=1, alpha=0.5)
                 axs[row, j].scatter(lf.lon, lf.lat, edgecolor=color, color="w", zorder=9)

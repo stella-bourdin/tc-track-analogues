@@ -28,3 +28,20 @@ def interp_time(
             .reset_coords("time")
         )
     return xr.concat(new_tracks, dim="record")
+
+def flag_periods(year_series, period_boundaries):
+    period=np.where(
+            year_series.between(
+                period_boundaries[0], period_boundaries[1]
+            ),
+            "CF",
+            "nan",
+        )
+    period=np.where(
+            year_series.between(
+                period_boundaries[2], period_boundaries[3]
+            ),
+            "F",
+            period,
+        )
+    return period

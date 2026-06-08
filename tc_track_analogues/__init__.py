@@ -6,7 +6,8 @@ TC attribution using track analogues as per Bourdin et al. 2025.
 
 from .target import load_target_track_hourly, extract_target_window_before_landfall, plot_target_case
 from .catalogues import load_ibtracs_catalogue, load_CHAZ_catalogue, load_MIT_catalogue, load_SEAS520C_catalogue
-from .analogues import add_dist_from_target_landfall, find_analogues, flag_periods, plot_analogues
+from .analogues import add_dist_from_target_landfall, find_analogues, plot_analogues
+from .utils import flag_periods
 
 __all__ = [
     "load_target_track_hourly", 
