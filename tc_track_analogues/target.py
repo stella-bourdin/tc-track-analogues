@@ -10,6 +10,8 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import cartopy.crs as ccrs
+import os
+import pickle as pkl
 
 def _ibtracs_subset_choice(year, basin):
     """
@@ -28,7 +30,7 @@ def load_target_track_hourly(name, season, basin, use_cache = True):
     Set use_cache to False if you want to overwrite the cached target track data.
     """
     cache_file = "../data/cache/target_"+name+"_"+str(int(season))+"_"+basin+".pkl"
-    if os.file.exists(cache_file) & use_cache:
+    if os.path.exists(cache_file) & use_cache:
         with open(cache_file, "rb") as f:
             return pkl.load(f)
     else:

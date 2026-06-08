@@ -1,3 +1,7 @@
+"""
+This module contains the function relative to the analogues identification and plotting.
+"""
+
 import numpy as np
 from haversine import haversine, Unit
 import xarray as xr
