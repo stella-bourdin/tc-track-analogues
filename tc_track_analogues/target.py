@@ -1,3 +1,7 @@
+"""
+This module contains the functions relative to the target identification and plotting.
+"""
+
 from datetime import datetime
 import huracanpy
 import pandas as pd
@@ -17,25 +21,34 @@ def _ibtracs_subset_choice(year, basin):
     else:
         return basin
 
-def load_target_track_hourly(name, season, basin):
+def load_target_track_hourly(name, season, basin, use_cache = True):
     """
     Loads the track of the target case and interpolate it to 1-hourly
+
+    Set use_cache to False if you want to overwrite the cached target track data.
     """
-    # Load ibtracs
-    ib = huracanpy.load(source = "ibtracs", ibtracs_subset = _ibtracs_subset_choice(season, basin))
-    # Select the target
-    target = ib.where((ib.name == name) & (ib.time.dt.year == season), drop = True)
-    target = target[["time", "lon", "lat", "usa_wind", "usa_pres", "track_id"]]
-    # Interpolate to 1-hourly
-    T = pd.Series(pd.date_range(target.time.min().values, target.time.max().values, freq='1h'))
-    T = T.to_xarray().rename("T").rename({"index":"time"})
-    T["time"] = T.astype(str).str.slice(0,19).astype(np.datetime64)
-    target_1h = target.set_coords("time").swap_dims({"record": "time"}).interp(
-        time=T.time
-    )#.swap_dims({"time": "record"}).reset_coords("time")
-    # Compute SSHS category
-    target_1h["usa_sshs"] = huracanpy.tc.saffir_simpson_category(target_1h.usa_wind, wind_units="knots")
-    return target_1h
+    cache_file = "../data/cache/target_"+name+"_"+str(int(season))+"_"+basin+".pkl"
+    if os.file.exists(cache_file) & use_cache:
+        with open(cache_file, "rb") as f:
+            return pkl.load(f)
+    else:
+        # Load ibtracs
+        ib = huracanpy.load(source = "ibtracs", ibtracs_subset = _ibtracs_subset_choice(season, basin))
+        # Select the target
+        target = ib.where((ib.name == name) & (ib.time.dt.year == season), drop = True)
+        target = target[["time", "lon", "lat", "usa_wind", "usa_pres", "track_id"]]
+        # Interpolate to 1-hourly
+        T = pd.Series(pd.date_range(target.time.min().values, target.time.max().values, freq='1h'))
+        T = T.to_xarray().rename("T").rename({"index":"time"})
+        T["time"] = T.astype(str).str.slice(0,19).astype(np.datetime64)
+        target_1h = target.set_coords("time").swap_dims({"record": "time"}).interp(
+            time=T.time
+        )#.swap_dims({"time": "record"}).reset_coords("time")
+        # Compute SSHS category
+        target_1h["usa_sshs"] = huracanpy.tc.saffir_simpson_category(target_1h.usa_wind, wind_units="knots")
+        with open(cache_file, "wb") as f:
+            pkl.dump(target_1h, f)
+        return target_1h
 
 def extract_target_window_before_landfall(target, landfall_time, time_window = 24):
     """
