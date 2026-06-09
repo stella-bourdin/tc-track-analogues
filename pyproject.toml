@@ -16,13 +16,19 @@ dependencies = [
     "xarray>=2023.1",
     "scipy>=1.10",
     "matplotlib>=3.7",
+    "cartopy>=0.21",
+    "seaborn>=0.12",
+    "haversine>=2.8",
+    "huracanpy>=0.1",
+    "pycircstat2>=0.1",
 ]
 
 [project.optional-dependencies]
 notebook = [
     "jupyter>=1.0",
     "ipykernel>=6.0",
-    "cartopy>=0.21",
+    "cmcrameri>=1.4",
+    "tqdm>=4.0",
 ]
 dev = [
     "pytest>=7.0",

@@ -15,7 +15,6 @@ dependencies:
   - haversine
   - tqdm
   - huracanpy
-  - datetime
   - pycircstat2
   - pip
   - pip:
