@@ -24,12 +24,14 @@ def get_ttest_pval(dist, dist_period):
     dist_F = dist[dist_period == "F"]
     return ttest_ind(dist_CF, dist_F).pvalue
 
-def get_ttest_ci(dist, dist_period, level = 0.95):
+
+def get_ttest_ci(dist, dist_period, level=0.95):
     dist_CF = dist[dist_period == "CF"]
     dist_F = dist[dist_period == "F"]
     delta = dist_F.mean() - dist_CF.mean()
     CI = ttest_ind(dist_F, dist_CF).confidence_interval(level)
     return delta, CI
+
 
 def get_cvm_pval(dist, dist_period):
     dist_CF = dist[dist_period == "CF"]
@@ -174,17 +176,19 @@ def plot_diff_in_intensity(analogues, palette, intensity_var="wind", type="ecdf"
 
     return pvals
 
+
 def plot_summary_diff_wind(analogues):
-    plt.figure(figsize = (3,3))
+    plt.figure(figsize=(3, 3))
     for i, c in enumerate(analogues):
         delta, CI = get_ttest_ci(analogues[c].wind, analogues[c].period)
-        plt.scatter([i], [delta], color = 'k')
-        plt.plot([i,i], [CI[0], CI[1]], color = 'k')
+        plt.scatter([i], [delta], color="k")
+        plt.plot([i, i], [CI[0], CI[1]], color="k")
     plt.xticks(range(len(analogues)), analogues.keys())
-    plt.axhline(y=0, color = 'k', linestyle = "--")
+    plt.axhline(y=0, color="k", linestyle="--")
     plt.ylabel("$\Delta u$ in m/s")
-    plt.grid(axis = 'y')
+    plt.grid(axis="y")
     sns.despine()
+
 
 def plot_diff_in_seasonality(analogues, palette):
     fig, axs = plt.subplots(
