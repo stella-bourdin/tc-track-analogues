@@ -17,7 +17,7 @@ from .catalogues import (
 )
 from .analogues import add_dist_from_target_landfall, find_analogues, plot_analogues
 from .utils import flag_periods
-from .comparison import plot_diff_in_freq, plot_diff_in_intensity, plot_diff_in_seasonality
+from .comparison import plot_diff_in_freq, plot_diff_in_intensity, plot_summary_diff_wind, plot_diff_in_seasonality
 
 __all__ = [
     "load_target_track_hourly",
@@ -33,6 +33,7 @@ __all__ = [
     "plot_analogues",
     "plot_diff_in_freq",
     "plot_diff_in_intensity",
+    "plot_summary_diff_wind",
     "plot_diff_in_seasonality",
 ]
 
