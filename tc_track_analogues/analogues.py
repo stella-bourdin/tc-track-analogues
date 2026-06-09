@@ -45,8 +45,19 @@ def dist_haversine(A, B):
     return [haversine(a, b, unit=Unit.DEGREES) for a, b in zip(A_coords, B_coords)]
 
 
+def translation_speed(A):
+    """
+    Compute the mean translation speed over the given trajectory.
+    """
+    coords = np.concatenate([[A.lat.values], [A.lon.values]]).T
+    return np.mean([haversine(p, q) for p, q in zip(coords[:-1], coords[1:])])
+
+
 def find_analogues(
-    target_window, catalogue, parameters, time_window=24, 
+    target_window,
+    catalogue,
+    parameters,
+    time_window=24,
 ):
     """
     Function to get the analogues of a given case
@@ -103,7 +114,10 @@ def find_analogues(
             else:
                 # If close enough, store the analogue distance
                 analogues.loc[sid, "analogue_dist"] = analogue_dist
-    analogues = analogues.assign(period = flag_periods(analogues.time.dt.year, dates))
+                analogues.loc[sid, "translation_speed"] = translation_speed(
+                    track_window
+                )
+    analogues = analogues.assign(period=flag_periods(analogues.time.dt.year, dates))
     return analogues
 
 
@@ -111,7 +125,7 @@ def plot_analogues(
     analogues, catalogues, target, target_window, landfall, color_cf, color_f, pad=10
 ):
     """
-    Given a set of analogues from different periods and catalogues, 
+    Given a set of analogues from different periods and catalogues,
     plots the analogues along the target track.
     """
     fig, axs = plt.subplots(
@@ -127,10 +141,14 @@ def plot_analogues(
         ax.plot(target.lon, target.lat, color="r", linewidth=1)
         ax.plot(target_window.lon, target_window.lat, color="r", linewidth=5)
         ax.scatter(landfall.lon, landfall.lat, color="w", edgecolor="r", zorder=10)
-        ax.set_extent([
-            landfall.lon - pad, landfall.lon + pad,
-            landfall.lat - pad, landfall.lat + pad,
-        ])
+        ax.set_extent(
+            [
+                landfall.lon - pad,
+                landfall.lon + pad,
+                landfall.lat - pad,
+                landfall.lat + pad,
+            ]
+        )
 
     rows = [("CF", 0, color_cf), ("F", 1, color_f)]
 
@@ -142,7 +160,9 @@ def plot_analogues(
                 t = groups[tid]
                 lf = analogues[c].loc[tid]
                 axs[row, j].plot(t.lon, t.lat, color=color, linewidth=1, alpha=0.5)
-                axs[row, j].scatter(lf.lon, lf.lat, edgecolor=color, color="w", zorder=9)
+                axs[row, j].scatter(
+                    lf.lon, lf.lat, edgecolor=color, color="w", zorder=9
+                )
             prefix = f"{c}\n" if row == 0 else ""
             axs[row, j].set_title(f"{prefix}{period} – {len(tids)}")
 
