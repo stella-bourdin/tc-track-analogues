@@ -16,6 +16,7 @@ dependencies:
   - tqdm
   - huracanpy
   - datetime
+  - pycircstat2
   - pip
   - pip:
     - -e .
