@@ -39,9 +39,12 @@ def load_target_track_hourly(name, season, basin, use_cache=True):
             return pkl.load(f)
     else:
         # Load ibtracs
-        ib = huracanpy.load(
-            source="ibtracs", ibtracs_subset=_ibtracs_subset_choice(season, basin)
-        )
+        if os.path.exists("../data/ibtracs_"+basin+".csv"):
+            ib = huracanpy.load(
+                "../data/ibtracs_"+basin+".csv"
+            )
+        else:
+            ib = huracanpy.load(source = "ibtracs", ibtracs_subset = basin)
         # Select the target
         target = ib.where((ib.name == name) & (ib.time.dt.year == season), drop=True)
         target = target[["time", "lon", "lat", "usa_wind", "usa_pres", "track_id"]]
