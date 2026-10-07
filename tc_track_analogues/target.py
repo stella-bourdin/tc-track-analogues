@@ -25,23 +25,23 @@ def _ibtracs_subset_choice(year, basin):
         return basin
 
 
-def load_target_track_hourly(name, season, basin, use_cache=True):
+def load_target_track_hourly(name, season, basin, use_cache=True, data_path = "../data/"):
     """
     Loads the track of the target case and interpolate it to 1-hourly
 
     Set use_cache to False if you want to overwrite the cached target track data.
     """
     cache_file = (
-        "../data/cache/target_" + name + "_" + str(int(season)) + "_" + basin + ".pkl"
+        data_path + "cache/target_" + name + "_" + str(int(season)) + "_" + basin + ".pkl"
     )
     if os.path.exists(cache_file) & use_cache:
         with open(cache_file, "rb") as f:
             return pkl.load(f)
     else:
         # Load ibtracs
-        if os.path.exists("../data/ibtracs_"+basin+".csv"):
+        if os.path.exists(data_path + "ibtracs_"+basin+".csv"):
             ib = huracanpy.load(
-                "../data/ibtracs_"+basin+".csv"
+                data_path + "ibtracs_"+basin+".csv"
             )
         else:
             ib = huracanpy.load(source = "ibtracs", ibtracs_subset = basin)

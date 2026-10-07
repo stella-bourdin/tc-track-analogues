@@ -6,7 +6,7 @@ from .utils import interp_time
 
 
 def load_ibtracs_catalogue(
-    basin, filename=None, update=True, wind_var="usa_wind", pres_var="usa_pres"
+    basin, filename=None, update=True, wind_var="usa_wind", pres_var="usa_pres", data_path = "../data/"
 ):
     """
     Loads the ibtracs catalogue.
@@ -16,7 +16,7 @@ def load_ibtracs_catalogue(
     """
     # Default filename
     if filename is None:
-        filename = "../data/ibtracs_" + basin + ".csv"
+        filename = data_path + "ibtracs_" + basin + ".csv"
     if update:  # If update, load from internet and save to filename
         ib = huracanpy.load(
             source="ibtracs",
